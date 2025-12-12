@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: ipscanner
+Version: 0.1.0
+Summary: A Django app to scan IP networks and export results.
+Author: Jeremie Rouzet
+Author-email: Jeremie Rouzet <your_email@example.com>
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: django>=3.2
+Requires-Dist: scapy

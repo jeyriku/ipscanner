@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ipscanner"
+version = "0.1.0"
+description = "A Django app to scan IP networks and export results."
+authors = [{ name = "Jeremie Rouzet", email = "your_email@example.com" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "django>=3.2",
+    "scapy",
+]
+
+[tool.setuptools.packages.find]
+include = ["ipscanner*", "jeyipscan*"]
+
+[project.scripts]
+# console script to launch the Django management commands for this project
+# usage: `jeyipscan` or `jeyipscan runserver 0.0.0.0:8000`
+jeyipscan = "jeyipscan.cli:main"
