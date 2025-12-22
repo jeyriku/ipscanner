@@ -1,3 +1,31 @@
+## Troubleshooting
+
+### Django server fails to start or shows import/URL errors
+
+If you encounter errors like:
+
+```
+Exception in thread django-main-thread:
+Traceback (most recent call last):
+    ...
+    File "/path/to/views.py", line XX
+        'ip': ip,
+        ...
+```
+
+This may be due to a corrupted or badly merged `views.py` file. To fix:
+
+1. Ensure your `views.py` matches the latest version from the repository.
+2. Remove any duplicated or misplaced code blocks, especially in `nmap_scan`, `scan_networks`, and `ip_scan_view`.
+3. Restart your Django server after fixing the file.
+
+If you use Git, you can always reset to the latest working commit:
+
+```bash
+git pull origin main
+```
+
+If you need help, open an issue or contact the maintainer.
 # IPScanner
 
 A Django application to scan IP networks provided via a web form and export the results as a CSV file compatible with NetBox.
