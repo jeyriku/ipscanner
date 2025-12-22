@@ -36,7 +36,20 @@ A Django application to scan IP networks provided via a web form and export the 
 
 - Scan multiple IP networks submitted via a web form
 - **Scan networks to which your local interfaces are attached (auto-detected subnets, e.g. WiFi/Ethernet)**
-- Easily add detected local networks to the scan list with a dropdown in the web UI
+- Easily add detected local networks to the scan list with a dropdown in the web UI (the dropdown is always populated if your system has active interfaces with IPv4 addresses)
+## Troubleshooting: Local Network Dropdown Empty
+
+If the "Réseaux détectés sur vos interfaces" dropdown is empty:
+
+- Make sure your computer is connected to a network (WiFi or Ethernet) and has an IPv4 address.
+- The dropdown only shows IPv4 subnets (not IPv6).
+- If you are running the app in a container or VM, ensure the network interfaces are visible to Python.
+- You can test detection with:
+
+    ```bash
+    python3 -c "import netifaces, ipaddress; subnets = []; interfaces = netifaces.interfaces();\nfor iface in interfaces:\n    addrs = netifaces.ifaddresses(iface)\n    if netifaces.AF_INET in addrs:\n        for link in addrs[netifaces.AF_INET]:\n            ip = link.get('addr')\n            netmask = link.get('netmask')\n            if ip and netmask and not ip.startswith('127.'):\n                try:\n                    net = ipaddress.IPv4Network(f'{ip}/{netmask}', strict=False)\n                    subnets.append(str(net))\n                except Exception:\n                    continue\nprint(subnets)"
+    ```
+- If you see a list like `["10.188.0.0/16"]`, the backend is working. If not, check your network setup.
 - Export scan results (IP, hostname, MAC) as a CSV file
 - CSV format compatible with NetBox import
 - Optional: Store scan history in the database
