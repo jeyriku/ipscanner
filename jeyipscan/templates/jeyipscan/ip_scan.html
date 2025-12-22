@@ -30,18 +30,29 @@
         <!-- ▶ Scan Form -->
         <form id="scanForm" method="post" novalidate>
             {% csrf_token %}
-            {% for field in form %}
-                <div class="mb-3">
-                    {{ field.label_tag }}
-                    {{ field }}
-                    {% if field.help_text %}
-                        <div class="form-text">{{ field.help_text }}</div>
-                    {% endif %}
-                    {% for error in field.errors %}
-                        <div class="text-danger small">{{ error }}</div>
-                    {% endfor %}
+            <div class="mb-3">
+                {{ form.networks.label_tag }}
+                {{ form.networks }}
+                {% if form.networks.help_text %}
+                    <div class="form-text">{{ form.networks.help_text }}</div>
+                {% endif %}
+                {% for error in form.networks.errors %}
+                    <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+            </div>
+            <div class="mb-3">
+                {{ form.local_network.label_tag }}
+                <div class="input-group">
+                    {{ form.local_network }}
+                    <button type="button" class="btn btn-outline-secondary" id="addLocalNetworkBtn">Ajouter</button>
                 </div>
-            {% endfor %}
+                {% if form.local_network.help_text %}
+                    <div class="form-text">{{ form.local_network.help_text }}</div>
+                {% endif %}
+                {% for error in form.local_network.errors %}
+                    <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+            </div>
             <button type="submit" class="btn btn-primary w-100">🚀 Lancer le Scan</button>
         </form>
 
@@ -106,6 +117,23 @@
         scanForm.addEventListener('submit', function () {
             spinner.classList.remove('d-none');
         });
+
+        // Add local network to textarea
+        const addBtn = document.getElementById('addLocalNetworkBtn');
+        const localSelect = document.getElementById('id_local_network');
+        const textarea = document.getElementById('id_networks');
+        if (addBtn && localSelect && textarea) {
+            addBtn.addEventListener('click', function () {
+                const selected = localSelect.value;
+                if (selected && textarea.value.split('\n').indexOf(selected) === -1) {
+                    if (textarea.value.trim() !== '') {
+                        textarea.value += '\n' + selected;
+                    } else {
+                        textarea.value = selected;
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html>

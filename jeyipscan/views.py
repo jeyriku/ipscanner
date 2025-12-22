@@ -10,7 +10,17 @@ import nmap  # python-nmap package
 
 
 def get_local_network():
-    """Auto-detect local subnet (excluding loopback)."""
+
+    """Auto-detect the first local subnet (excluding loopback)."""
+    nets = get_all_local_networks()
+    if nets:
+        return nets[0]
+    return "127.0.0.0/24"
+
+
+def get_all_local_networks():
+    """Return a list of all IPv4 subnets for all interfaces (excluding loopback)."""
+    subnets = []
     try:
         import netifaces
         for iface in netifaces.interfaces():
@@ -20,13 +30,14 @@ def get_local_network():
                     ip = link.get('addr')
                     netmask = link.get('netmask')
                     if ip and netmask and not ip.startswith("127."):
-                        net = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
-                        return str(net)
+                        try:
+                            net = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
+                            subnets.append(str(net))
+                        except Exception:
+                            continue
     except Exception:
         pass
-
-    # Fallback
-    return "127.0.0.0/24"
+    return subnets
 
 
 def resolve_hostname(ip):
@@ -62,11 +73,20 @@ def nmap_scan(network):
             if 'mac' in scanner[host]['addresses']:
                 mac = scanner[host]['addresses']['mac']
 
-            results.append({
+            from .views import get_all_local_networks
+            local_networks = get_all_local_networks()
+            results = None
+
                 'ip': ip,
-                'hostname': hostname,
+                form = IPNetworkForm(request.POST, local_network_choices=local_networks)
                 'mac': mac
             })
+
+                    # If a local network was selected, add it to the textarea if not already present
+                    selected_local = form.cleaned_data.get('local_network')
+                    if selected_local and selected_local not in networks:
+                        networks.append(selected_local)
+
 
     except Exception as e:
         # Safe fallback
@@ -77,11 +97,14 @@ def nmap_scan(network):
 
 def scan_networks(networks):
     """Handle a list of user-submitted subnets and scan each."""
+
     all_results = []
 
+                        # Update the textarea with the new list (including any added local network)
+                        form = IPNetworkForm(initial={'networks': '\n'.join(networks)}, local_network_choices=local_networks)
     for network in networks:
         net = network.strip()
-        if not net:
+                form = IPNetworkForm(initial={'networks': get_local_network()}, local_network_choices=local_networks)
             continue
         try:
             ipaddress.ip_network(net)  # Will raise if invalid
