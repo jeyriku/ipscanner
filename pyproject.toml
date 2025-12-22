@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ipscanner"
 version = "0.1.0"
 description = "A Django app to scan IP networks and export results."
-authors = [{ name = "Jeremie Rouzet", email = "your_email@example.com" }]
+authors = [{ name = "Jeremie Rouzet", email = "jerems@jeyriku.net" }]
 license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.8"
