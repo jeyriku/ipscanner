@@ -57,41 +57,26 @@ def nmap_scan(network):
 
     try:
         scanner.scan(hosts=network, arguments='-sn')
-
         for host in scanner.all_hosts():
             ip = host
             hostname = 'Non résolu'
             mac = 'MAC inconnue'
-
             # Hostnames (if provided by Nmap)
             if 'hostnames' in scanner[host] and scanner[host]['hostnames']:
                 hostname = scanner[host]['hostnames'][0].get('name') or resolve_hostname(ip)
             else:
                 hostname = resolve_hostname(ip)
-
             # MAC addresses with fallback
             if 'mac' in scanner[host]['addresses']:
                 mac = scanner[host]['addresses']['mac']
-
-            from .views import get_all_local_networks
-            local_networks = get_all_local_networks()
-            results = None
-
+            results.append({
                 'ip': ip,
-                form = IPNetworkForm(request.POST, local_network_choices=local_networks)
+                'hostname': hostname,
                 'mac': mac
             })
-
-                    # If a local network was selected, add it to the textarea if not already present
-                    selected_local = form.cleaned_data.get('local_network')
-                    if selected_local and selected_local not in networks:
-                        networks.append(selected_local)
-
-
     except Exception as e:
         # Safe fallback
         return [{'error': f"Nmap scan failed on {network}: {str(e)}"}]
-
     return results
 
 
@@ -99,12 +84,9 @@ def scan_networks(networks):
     """Handle a list of user-submitted subnets and scan each."""
 
     all_results = []
-
-                        # Update the textarea with the new list (including any added local network)
-                        form = IPNetworkForm(initial={'networks': '\n'.join(networks)}, local_network_choices=local_networks)
     for network in networks:
         net = network.strip()
-                form = IPNetworkForm(initial={'networks': get_local_network()}, local_network_choices=local_networks)
+        if not net:
             continue
         try:
             ipaddress.ip_network(net)  # Will raise if invalid
@@ -112,7 +94,6 @@ def scan_networks(networks):
             all_results.extend(scan_result)
         except ValueError:
             all_results.append({'error': f"Réseau invalide : {net}"})
-
     return all_results
 
 
@@ -120,13 +101,15 @@ def ip_scan_view(request):
     """
     Handle form display, scan execution (Nmap), and CSV export logic.
     """
+    local_networks = get_all_local_networks()
     results = None
-
     if request.method == "POST":
-        form = IPNetworkForm(request.POST)
+        form = IPNetworkForm(request.POST, local_network_choices=local_networks)
         if form.is_valid():
             networks = form.cleaned_data['networks'].splitlines()
-
+            selected_local = form.cleaned_data.get('local_network')
+            if selected_local and selected_local not in networks:
+                networks.append(selected_local)
             if 'download_csv' in request.POST:
                 scanned = scan_networks(networks)
                 response = HttpResponse(content_type="text/csv")
@@ -134,16 +117,18 @@ def ip_scan_view(request):
                 writer = csv.DictWriter(response, fieldnames=['ip', 'hostname', 'mac'])
                 writer.writeheader()
                 for row in scanned:
-                    if 'ip' in row:  # Skip errors
+                    if 'ip' in row:
                         writer.writerow(row)
                 return response
-
             else:
                 results = scan_networks(networks)
+                # Always re-initialize the form with choices and current textarea value
+                form = IPNetworkForm(initial={'networks': '\n'.join(networks)}, local_network_choices=local_networks)
+        else:
+            # If form is invalid, re-initialize with choices to preserve dropdown
+            form = IPNetworkForm(request.POST, local_network_choices=local_networks)
     else:
-        # GET request
-        form = IPNetworkForm(initial={'networks': get_local_network()})
-
+        form = IPNetworkForm(initial={'networks': get_local_network()}, local_network_choices=local_networks)
     return render(request, 'jeyipscan/ip_scan.html', {
         'form': form,
         'results': results
