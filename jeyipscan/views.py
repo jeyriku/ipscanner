@@ -1,3 +1,19 @@
+import platform
+
+# Architecture check: warn if running under Rosetta or mismatched arch
+def _arch_warning():
+    import sys
+    py_arch = platform.machine()
+    proc_arch = platform.processor()
+    if hasattr(sys, 'base_prefix'):
+        venv = sys.base_prefix != sys.prefix
+    else:
+        venv = False
+    print(f"[INFO] Python architecture: {py_arch}, Processor: {proc_arch}, Venv: {venv}")
+    if py_arch == 'x86_64' and proc_arch == 'arm' or py_arch == 'arm64' and proc_arch == 'i386':
+        print("[WARNING] Architecture mismatch detected! You may need to reinstall Python and dependencies for your native architecture (arm64 for Apple Silicon, x86_64 for Intel/Rosetta). See README.md for help.")
+
+_arch_warning()
 from django.shortcuts import render
 from django.http import HttpResponse
 from .forms import IPNetworkForm
@@ -23,7 +39,10 @@ def get_all_local_networks():
     subnets = []
     try:
         import netifaces
-        for iface in netifaces.interfaces():
+        print('DEBUG: netifaces imported in get_all_local_networks')
+        interfaces = netifaces.interfaces()
+        print('DEBUG: interfaces found:', interfaces)
+        for iface in interfaces:
             addrs = netifaces.ifaddresses(iface)
             if netifaces.AF_INET in addrs:
                 for link in addrs[netifaces.AF_INET]:
@@ -35,8 +54,9 @@ def get_all_local_networks():
                             subnets.append(str(net))
                         except Exception:
                             continue
-    except Exception:
-        pass
+        print('DEBUG: subnets detected:', subnets)
+    except Exception as e:
+        print('DEBUG: Exception in get_all_local_networks:', e)
     return subnets
 
 
@@ -102,6 +122,7 @@ def ip_scan_view(request):
     Handle form display, scan execution (Nmap), and CSV export logic.
     """
     local_networks = get_all_local_networks()
+    print('DEBUG: local_networks passed to form:', local_networks)
     results = None
     if request.method == "POST":
         form = IPNetworkForm(request.POST, local_network_choices=local_networks)

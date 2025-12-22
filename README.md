@@ -1,3 +1,29 @@
+## Architecture requirements (Apple Silicon/Intel)
+
+If you are on a Mac with Apple Silicon (M1/M2/M3), you must:
+
+- Use a Python interpreter and virtual environment that matches your hardware (arm64 for Apple Silicon, x86_64 for Intel/Rosetta).
+- Install all dependencies (like netifaces) in the same architecture as your Python.
+
+**How to check your Python architecture:**
+
+```bash
+python3 -c "import platform; print(platform.machine())"
+```
+
+If you see `arm64`, you are using Apple Silicon native Python. If you see `x86_64`, you are using Intel/Rosetta Python.
+
+**If you get errors about incompatible architecture:**
+
+- Recreate your virtual environment with the correct Python version/architecture.
+- Reinstall all dependencies:
+
+```bash
+pip uninstall netifaces
+pip install --force-reinstall --no-cache-dir netifaces
+```
+
+See the troubleshooting section below for more details.
 ## Troubleshooting
 
 ### Django server fails to start or shows import/URL errors
