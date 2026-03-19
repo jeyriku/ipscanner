@@ -29,11 +29,11 @@ test:quality:
   <<: *python_template
   stage: test
   script:
-    - echo "📊 Vérification de la structure ipscanner..."
-    - test -f pyproject.toml && echo "✅ pyproject.toml présent"
-    - test -f README.md && echo "✅ README.md présent"
-    - test -d ipscanner && echo "✅ Répertoire ipscanner présent"
-    - echo "✅ Validation de la structure terminée"
+    - echo "Vérification de la structure ipscanner..."
+    - test -f pyproject.toml && echo "pyproject.toml présent"
+    - test -f README.md && echo "README.md présent"
+    - test -d ipscanner && echo "Répertoire ipscanner présent" || echo "Pas de répertoire ipscanner"
+    - echo "Validation terminée"
   only:
     - branches
     - merge_requests
@@ -45,12 +45,10 @@ build:package:
   <<: *python_template
   stage: build
   script:
-    - echo "📦 Build du package ipscanner..."
-    - echo "🔢 Auto-incrément de version..."
+    - echo "Build du package ipscanner..."
     - |
       CURRENT_VERSION=$(grep '^version = ' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
       BASE=$(echo "$CURRENT_VERSION" | cut -d. -f1,2)
-      echo "Version de base: ${BASE}.x"
       NEXUS_LATEST_PATCH=$(curl -sf -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" \
         "http://jeysrv12:8081/service/rest/v1/search?repository=pypi-releases&name=ipscanner" \
         2>/dev/null | python3 -c \
@@ -58,16 +56,12 @@ build:package:
         2>/dev/null || echo "-1")
       if [ "$NEXUS_LATEST_PATCH" = "-1" ]; then
         NEW_VERSION="${BASE}.${CI_PIPELINE_IID}"
-        echo "⚠️  Nexus injoignable ou package absent — version basée sur CI_PIPELINE_IID: ${NEW_VERSION}"
       else
-        NEW_PATCH=$((NEXUS_LATEST_PATCH + 1))
-        NEW_VERSION="${BASE}.${NEW_PATCH}"
-        echo "✅ Dernière version Nexus: ${BASE}.${NEXUS_LATEST_PATCH} → Nouvelle: ${NEW_VERSION}"
+        NEW_VERSION="${BASE}.$((NEXUS_LATEST_PATCH + 1))"
       fi
+      echo "Nouvelle version: $NEW_VERSION"
       sed -i "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" pyproject.toml
-      echo "📦 Version finale: $(grep '^version = ' pyproject.toml)"
     - python -m build
-    - echo "📋 Packages créés:"
     - ls -lh dist/
   artifacts:
     paths:
@@ -77,7 +71,6 @@ build:package:
   only:
     - main
     - master
-    - tags
 
 # ========================================
 # STAGE 3: Publication vers Nexus
@@ -91,8 +84,7 @@ publish:nexus:
     - pip install --upgrade pip
     - pip install build twine
   script:
-    - echo "🚀 Publication ipscanner vers Nexus PyPI Repository..."
-    - echo "Repository -> ${NEXUS_PYPI_URL}"
+    - echo "Publication ipscanner vers Nexus PyPI Repository..."
     - |
       cat > ~/.pypirc << EOF
       [distutils]
@@ -105,15 +97,12 @@ publish:nexus:
       password: ${NEXUS_PASSWORD}
       EOF
     - chmod 600 ~/.pypirc
-    - echo "📤 Upload vers Nexus..."
     - twine upload --repository nexus dist/* --verbose
-    - echo "✅ ipscanner publié avec succès sur Nexus!"
-    - echo "📍 Accès -> http://jeysrv12:8081/repository/pypi-releases/"
-    - echo "🔄 Commit-retour de la version dans le dépôt..."
+    - echo "ipscanner publié sur Nexus!"
     - |
       set +e
       if [ -z "${GITEA_PUSH_TOKEN}" ]; then
-        echo "⚠️ GITEA_PUSH_TOKEN non défini — commit-retour ignoré"
+        echo "GITEA_PUSH_TOKEN non défini — commit-retour ignoré"
       else
         NEW_VERSION=$(grep '^version = ' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
         git config user.email "ci@jeyriku.net"
@@ -125,7 +114,7 @@ publish:nexus:
         sed -i "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" pyproject.toml
         git add pyproject.toml
         git diff --cached --quiet && echo "Rien à commiter" || git commit -m "chore: bump version to ${NEW_VERSION} [skip ci]"
-        git push origin main && echo "✅ Commit-retour OK (${NEW_VERSION})" || echo "⚠️ Push commit-retour échoué (non bloquant)"
+        git push origin main && echo "Commit-retour OK (${NEW_VERSION})" || echo "Push commit-retour échoué (non bloquant)"
       fi
       set -e
   dependencies:
@@ -133,17 +122,11 @@ publish:nexus:
   only:
     - main
     - master
-    - tags
   when: on_success
 
-# ========================================
-# Nettoyage après échec
-# ========================================
 cleanup:on_failure:
   stage: publish
   script:
-    - echo "🧹 Nettoyage après échec du pipeline..."
     - rm -rf dist/ build/ *.egg-info
-    - echo "✅ Nettoyage terminé"
   when: on_failure
   allow_failure: true
