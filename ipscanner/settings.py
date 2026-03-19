@@ -21,7 +21,18 @@ TEMP_DIR = os.path.join(BASE_DIR, 'templates')
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-*gu#u@9(h=9h&wt71&f&5e^q!-npkycwat%30t(r%2fq)qk5o!'
+# Load from Jeyriku Vault, fall back to env var or dev placeholder
+def _load_secret_key():
+    try:
+        from ipscanner.vault import get_vault
+        key = get_vault().get_secret_key()
+        if key:
+            return key
+    except Exception:
+        pass
+    return os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-change-me-in-production')
+
+SECRET_KEY = _load_secret_key()
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True

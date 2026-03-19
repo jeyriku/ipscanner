@@ -1,0 +1,149 @@
+# Pipeline CI/CD GitLab pour ipscanner
+# Publication automatique vers Nexus PyPI sur jeysrv12
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PYTHON_VERSION: "3.9"
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+stages:
+  - test
+  - build
+  - publish
+
+.python_template: &python_template
+  image: python:${PYTHON_VERSION}-slim
+  before_script:
+    - python -V
+    - pip install --upgrade pip
+    - pip install build twine pytest
+
+# ========================================
+# STAGE 1: Tests
+# ========================================
+test:quality:
+  <<: *python_template
+  stage: test
+  script:
+    - echo "📊 Vérification de la structure ipscanner..."
+    - test -f pyproject.toml && echo "✅ pyproject.toml présent"
+    - test -f README.md && echo "✅ README.md présent"
+    - test -d ipscanner && echo "✅ Répertoire ipscanner présent"
+    - echo "✅ Validation de la structure terminée"
+  only:
+    - branches
+    - merge_requests
+
+# ========================================
+# STAGE 2: Build du package
+# ========================================
+build:package:
+  <<: *python_template
+  stage: build
+  script:
+    - echo "📦 Build du package ipscanner..."
+    - echo "🔢 Auto-incrément de version..."
+    - |
+      CURRENT_VERSION=$(grep '^version = ' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+      BASE=$(echo "$CURRENT_VERSION" | cut -d. -f1,2)
+      echo "Version de base: ${BASE}.x"
+      NEXUS_LATEST_PATCH=$(curl -sf -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" \
+        "http://jeysrv12:8081/service/rest/v1/search?repository=pypi-releases&name=ipscanner" \
+        2>/dev/null | python3 -c \
+        "import sys,json;d=json.load(sys.stdin);p=[int(i['version'].split('.')[2]) for i in d.get('items',[]) if len(i.get('version','').split('.'))==3 and i.get('version','').split('.')[2].isdigit()];print(max(p) if p else -1)" \
+        2>/dev/null || echo "-1")
+      if [ "$NEXUS_LATEST_PATCH" = "-1" ]; then
+        NEW_VERSION="${BASE}.${CI_PIPELINE_IID}"
+        echo "⚠️  Nexus injoignable ou package absent — version basée sur CI_PIPELINE_IID: ${NEW_VERSION}"
+      else
+        NEW_PATCH=$((NEXUS_LATEST_PATCH + 1))
+        NEW_VERSION="${BASE}.${NEW_PATCH}"
+        echo "✅ Dernière version Nexus: ${BASE}.${NEXUS_LATEST_PATCH} → Nouvelle: ${NEW_VERSION}"
+      fi
+      sed -i "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" pyproject.toml
+      echo "📦 Version finale: $(grep '^version = ' pyproject.toml)"
+    - python -m build
+    - echo "📋 Packages créés:"
+    - ls -lh dist/
+  artifacts:
+    paths:
+      - dist/
+      - pyproject.toml
+    expire_in: 1 week
+  only:
+    - main
+    - master
+    - tags
+
+# ========================================
+# STAGE 3: Publication vers Nexus
+# ========================================
+publish:nexus:
+  <<: *python_template
+  stage: publish
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - python -V
+    - pip install --upgrade pip
+    - pip install build twine
+  script:
+    - echo "🚀 Publication ipscanner vers Nexus PyPI Repository..."
+    - echo "Repository -> ${NEXUS_PYPI_URL}"
+    - |
+      cat > ~/.pypirc << EOF
+      [distutils]
+      index-servers =
+          nexus
+
+      [nexus]
+      repository: ${NEXUS_PYPI_URL}
+      username: ${NEXUS_USERNAME}
+      password: ${NEXUS_PASSWORD}
+      EOF
+    - chmod 600 ~/.pypirc
+    - echo "📤 Upload vers Nexus..."
+    - twine upload --repository nexus dist/* --verbose
+    - echo "✅ ipscanner publié avec succès sur Nexus!"
+    - echo "📍 Accès -> http://jeysrv12:8081/repository/pypi-releases/"
+    - echo "🔄 Commit-retour de la version dans le dépôt..."
+    - |
+      set +e
+      if [ -z "${GITEA_PUSH_TOKEN}" ]; then
+        echo "⚠️ GITEA_PUSH_TOKEN non défini — commit-retour ignoré"
+      else
+        NEW_VERSION=$(grep '^version = ' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+        git config user.email "ci@jeyriku.net"
+        git config user.name "GitLab CI"
+        git remote set-url origin "http://jeyriku:${GITEA_PUSH_TOKEN}@jeysrv12:8090/jeyriku/ipscanner.git"
+        git fetch origin main
+        git checkout -f main
+        git pull origin main --rebase
+        sed -i "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" pyproject.toml
+        git add pyproject.toml
+        git diff --cached --quiet && echo "Rien à commiter" || git commit -m "chore: bump version to ${NEW_VERSION} [skip ci]"
+        git push origin main && echo "✅ Commit-retour OK (${NEW_VERSION})" || echo "⚠️ Push commit-retour échoué (non bloquant)"
+      fi
+      set -e
+  dependencies:
+    - build:package
+  only:
+    - main
+    - master
+    - tags
+  when: on_success
+
+# ========================================
+# Nettoyage après échec
+# ========================================
+cleanup:on_failure:
+  stage: publish
+  script:
+    - echo "🧹 Nettoyage après échec du pipeline..."
+    - rm -rf dist/ build/ *.egg-info
+    - echo "✅ Nettoyage terminé"
+  when: on_failure
+  allow_failure: true
