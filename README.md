@@ -260,3 +260,29 @@ Feel free to open issues or submit pull requests!
 ## License
 
 MIT
+
+---
+
+## Gestion des secrets — jeyriku-vault
+
+`ipscanner` utilise [jeyriku-vault](http://jeysrv12:8090/jeyriku/jeyriku-vault) pour charger la `SECRET_KEY` Django sans la stocker en clair dans le code ou les fichiers de configuration.
+
+### Service vault requis
+
+| Service | Clé utilisée | Usage |
+|---|---|---|
+| `ipscanner` | `password` | Django SECRET_KEY |
+
+### Configuration
+
+```bash
+# Générer et stocker une SECRET_KEY Django
+python3 -c "import secrets; print(secrets.token_urlsafe(50))" | xargs -I{} jeyriku-vault set ipscanner --password {}
+```
+
+### Variables d'environnement (fallback)
+
+| Variable | Description |
+|---|---|
+| `DJANGO_SECRET_KEY` | SECRET_KEY Django (fallback si vault indisponible) |
+| `JEYRIKU_VAULT_PASSWORD` | Déverrouillage automatique du vault |
