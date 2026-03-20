@@ -105,13 +105,20 @@ publish:nexus:
     - echo "ipscanner publié sur Nexus!"
     - |
       set +e
-      if [ -z "${GITEA_PUSH_TOKEN}" ]; then
-        echo "GITEA_PUSH_TOKEN non défini — commit-retour ignoré"
+      GITLAB_PUSH_TOKEN=$(python3 -c "
+import os
+from jeyriku_vault import VaultManager
+vm = VaultManager(backend='encrypted_file')
+vm.unlock(os.environ['VAULT_MASTER_PASSWORD'])
+print(vm.get_credential('gitlab').token)
+" 2>/dev/null)
+      if [ -z "${GITLAB_PUSH_TOKEN}" ]; then
+        echo "token vault indisponible — commit-retour ignoré"
       else
         NEW_VERSION=$(grep '^version = ' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
         git config user.email "ci@jeyriku.net"
         git config user.name "GitLab CI"
-        git remote set-url origin "http://jeyriku:${GITEA_PUSH_TOKEN}@jeysrv12:8090/jeyriku/ipscanner.git"
+        git remote set-url origin "http://jeyriku:${GITLAB_PUSH_TOKEN}@jeysrv12:8090/jeyriku/ipscanner.git"
         git fetch origin main
         git checkout -f main
         git pull origin main --rebase
