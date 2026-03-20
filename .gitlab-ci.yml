@@ -126,6 +126,8 @@ print(vm.get_credential('gitlab').token)
         git add pyproject.toml
         git diff --cached --quiet && echo "Rien à commiter" || git commit -m "chore: bump version to ${NEW_VERSION} [skip ci]"
         git push origin main && echo "Commit-retour OK (${NEW_VERSION})" || echo "Push commit-retour échoué (non bloquant)"
+        git tag "${NEW_VERSION}" 2>/dev/null || echo "Tag déjà existant"
+        git push origin "${NEW_VERSION}" && echo "Tag ${NEW_VERSION} créé" || echo "Push tag échoué (non bloquant)"
       fi
       set -e
   dependencies:
