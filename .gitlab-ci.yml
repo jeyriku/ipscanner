@@ -50,10 +50,10 @@ build:package:
     - |
       CURRENT_VERSION=$(grep '^version = ' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
       BASE=$(echo "$CURRENT_VERSION" | cut -d. -f1,2)
-      NEXUS_LATEST_PATCH=$(curl -sf -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" \
-        "http://jeysrv12:8081/service/rest/v1/search?repository=pypi-releases&name=ipscanner" \
+      NEXUS_LATEST_PATCH=$(curl -sf \
+        "http://jeysrv12:8081/repository/pypi-releases/simple/ipscanner/" \
         2>/dev/null | python3 -c \
-        "import sys,json;d=json.load(sys.stdin);p=[int(i['version'].split('.')[2]) for i in d.get('items',[]) if len(i.get('version','').split('.'))==3 and i.get('version','').split('.')[2].isdigit()];print(max(p) if p else -1)" \
+        "import sys,re;html=sys.stdin.read();p=[int(m.group(1)) for m in re.finditer(r'ipscanner-\\d+\\.\\d+\\.(\\d+)', html)];print(max(p) if p else -1)" \
         2>/dev/null || echo "-1")
       if [ "$NEXUS_LATEST_PATCH" = "-1" ]; then
         NEW_VERSION="${BASE}.${CI_PIPELINE_IID}"
@@ -84,19 +84,22 @@ publish:nexus:
     - python -V
     - pip install --upgrade pip
     - pip install build twine
+    - pip install git+http://jeysrv12:8090/jeyriku/jeyriku-vault.git -q
+    - mkdir -p ~/.jeyriku
+    - printf '%s' "$VAULT_ENC" | base64 -d > ~/.jeyriku/vault.enc
   script:
     - echo "Publication ipscanner vers Nexus PyPI Repository..."
     - |
-      cat > ~/.pypirc << EOF
-      [distutils]
-      index-servers =
-          nexus
-
-      [nexus]
-      repository: ${NEXUS_PYPI_URL}
-      username: ${NEXUS_USERNAME}
-      password: ${NEXUS_PASSWORD}
-      EOF
+      python3 -c "
+      import os
+      from jeyriku_vault import VaultManager
+      vm = VaultManager(backend='encrypted_file')
+      vm.unlock(os.environ['VAULT_MASTER_PASSWORD'])
+      cred = vm.get_credential('nexus')
+      content = '[distutils]\nindex-servers = nexus\n\n[nexus]\nrepository: {}\nusername: {}\npassword: {}\n'.format(os.environ['NEXUS_PYPI_URL'], cred.username, cred.password)
+      open(os.path.expanduser('~/.pypirc'), 'w').write(content)
+      print('✅ .pypirc créé')
+      "
     - chmod 600 ~/.pypirc
     - twine upload --repository nexus dist/* --verbose
     - echo "ipscanner publié sur Nexus!"
