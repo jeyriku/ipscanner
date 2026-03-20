@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ipscanner"
-version = "0.1.6"
+version = "0.1.9"
 description = "A Django app to scan IP networks and export results."
 authors = [{ name = "Jeremie Rouzet", email = "jerems@jeyriku.net" }]
 license = { text = "MIT" }
