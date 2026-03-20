@@ -4,6 +4,7 @@
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   PYTHON_VERSION: "3.9"
+  NEXUS_PYPI_URL: "http://jeysrv12:8081/repository/pypi-releases/"
 
 cache:
   paths:
